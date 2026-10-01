@@ -121,7 +121,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SUPABASE_URL='https://fasnnommpjfexcprhiyz.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY=atob('c2JfcHVibGlzaGFibGVfd1hfNEFPcEtIOGE5ODlQb2h0bTRVZ19qdTFDMnhvYQ==');
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_wX_4AOpKH8a989Pohtm4Ug_ju1C2xoa';
 const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 const APP_URL=window.location.origin+window.location.pathname;
 let currentUser=null, authReady=false, syncTimer=null, syncInFlight=false, syncRevision=0;
@@ -217,30 +217,6 @@ function freshState(){
 }
 let state=freshState();
 let selected=1;
-
-function ensureDayMeta(day,baseline){
-  day._meta ||= {};
-  day._meta.tasks ||= {};
-  const base=Number(baseline||state.updatedAt||Date.now());
-  TASKS.forEach(([key])=>{if(day._meta.tasks[key]===undefined)day._meta.tasks[key]=base});
-  ['water','read','weight','notes'].forEach(key=>{if(day._meta[key]===undefined)day._meta[key]=base});
-  return day._meta;
-}
-function normalizeState(s){
-  if(!s||typeof s!=='object')return freshState();
-  s.days ||= {};
-  Object.values(s.days).forEach(day=>ensureDayMeta(day,s.updatedAt||Date.now()));
-  return s;
-}
-function touchField(day,key){
-  const now=Date.now();
-  const meta=ensureDayMeta(day,now);
-  if(key.startsWith('task:'))meta.tasks[key.slice(5)]=now;
-  else meta[key]=now;
-  day._updatedAt=now;
-  state.updatedAt=now;
-  return now;
-}
 
 function setUserStateContext(userId){
  clearPhotoUrlCache();
@@ -348,74 +324,98 @@ async function syncNow(){
  syncInFlight=true;
  const revision=syncRevision;
  const snapshot=cloudState();
- const snapshotUpdatedAt=state.updatedAt||Date.now();
+ const localUpdatedAt=Number(snapshot.updatedAt||Date.now());
+
+ const remoteResult=await supabaseClient.from('challenge_states')
+   .select('state,updated_at')
+   .eq('user_id',currentUser.id)
+   .maybeSingle();
+
+ if(remoteResult.error){
+   syncInFlight=false;
+   console.error(remoteResult.error);
+   setSyncStatus('Sync error');
+   return;
+ }
+
+ const remoteUpdatedAt=remoteResult.data
+   ? Math.max(Number(remoteResult.data.state?.updatedAt||0),Date.parse(remoteResult.data.updated_at||'')||0)
+   : 0;
+
+ if(remoteResult.data?.state && remoteUpdatedAt>localUpdatedAt){
+   state=remoteResult.data.state;
+   selected=dayNumber();
+   saveLocalOnly();
+   syncInFlight=false;
+   setSyncStatus('Synced');
+   render();
+   if(syncRevision!==revision)queueSync();
+   return;
+ }
+
  const {error}=await supabaseClient.from('challenge_states').upsert({
    user_id:currentUser.id,
    state:snapshot,
-   updated_at:new Date(snapshotUpdatedAt).toISOString()
+   updated_at:new Date(localUpdatedAt).toISOString()
  },{onConflict:'user_id'});
+
  syncInFlight=false;
- if(error){console.error(error);setSyncStatus('Sync error');return}
+ if(error){
+   console.error(error);
+   setSyncStatus('Sync error');
+   return;
+ }
  if(syncRevision!==revision)queueSync();
  else setSyncStatus('Synced');
-}
-function mergeDay(localDay,remoteDay,localStateUpdatedAt,remoteStateUpdatedAt){
- const a=localDay||{tasks:{},water:0,read:0,weight:'',notes:''};
- const b=remoteDay||{tasks:{},water:0,read:0,weight:'',notes:''};
- ensureDayMeta(a,localStateUpdatedAt||0);
- ensureDayMeta(b,remoteStateUpdatedAt||0);
- const merged={tasks:{},water:0,read:0,weight:'',notes:'',_meta:{tasks:{}}};
- const pick=(lv,rv,lt,rt)=>Number(lt||0)>=Number(rt||0)?lv:rv;
- TASKS.forEach(([key])=>{
-   if(key==='water'||key==='reading')return;
-   const lt=a._meta.tasks[key]||0,rt=b._meta.tasks[key]||0;
-   merged.tasks[key]=!!pick(!!(a.tasks||{})[key],!!(b.tasks||{})[key],lt,rt);
-   merged._meta.tasks[key]=Math.max(lt,rt);
- });
- merged.water=Number(pick(Number(a.water||0),Number(b.water||0),a._meta.water,b._meta.water)||0);
- merged.read=Number(pick(Number(a.read||0),Number(b.read||0),a._meta.read,b._meta.read)||0);
- merged.weight=pick(a.weight||'',b.weight||'',a._meta.weight,b._meta.weight);
- merged.notes=pick(a.notes||'',b.notes||'',a._meta.notes,b._meta.notes);
- merged._meta.water=Math.max(Number(a._meta.water||0),Number(b._meta.water||0));
- merged._meta.read=Math.max(Number(a._meta.read||0),Number(b._meta.read||0));
- merged._meta.weight=Math.max(Number(a._meta.weight||0),Number(b._meta.weight||0));
- merged._meta.notes=Math.max(Number(a._meta.notes||0),Number(b._meta.notes||0));
- merged.tasks.water=merged.water>=3.785;
- merged.tasks.reading=merged.read>=10;
- merged._meta.tasks.water=merged._meta.water;
- merged._meta.tasks.reading=merged._meta.read;
- merged._updatedAt=Math.max(Number(a._updatedAt||0),Number(b._updatedAt||0));
- return merged;
-}
-function mergeStates(local,remote){
- const merged=JSON.parse(JSON.stringify(remote||local||{}));
- merged.start=local?.start||remote?.start||new Date().toISOString().slice(0,10);
- merged.days={};
- const keys=new Set([...Object.keys(local?.days||{}),...Object.keys(remote?.days||{})]);
- keys.forEach(d=>merged.days[d]=mergeDay(local?.days?.[d],remote?.days?.[d],local?.updatedAt,remote?.updatedAt));
- merged.updatedAt=Math.max(Number(local?.updatedAt||0),Number(remote?.updatedAt||0),Date.now());
- return normalizeState(merged);
 }
 async function loadCloud(){
  if(!currentUser||!activeStateKey)return;
  setSyncStatus('Syncing…');
- const {data,error}=await supabaseClient.from('challenge_states').select('state,updated_at').eq('user_id',currentUser.id).maybeSingle();
- if(error){console.error(error);setSyncStatus('Sync unavailable');return}
- if(data?.state){
-   const remote=normalizeState(data.state),local=normalizeState(state);
-   const localHasProgress=hasMeaningfulProgress(local),remoteHasProgress=hasMeaningfulProgress(remote);
-   if(!hasLocalState){
-     state=remote;selected=dayNumber();saveLocalOnly();
-   }else if(localHasProgress||remoteHasProgress){
-     state=mergeStates(local,remote);selected=dayNumber();saveLocalOnly();syncRevision++;await syncNow();
-   }else{
-     state=remote;saveLocalOnly();
-   }
- }else{
-   state=normalizeState(state);state.start=state.start||new Date().toISOString().slice(0,10);state.updatedAt=Date.now();
-   saveLocalOnly();syncRevision++;await syncNow();
+ const {data,error}=await supabaseClient.from('challenge_states')
+   .select('state,updated_at')
+   .eq('user_id',currentUser.id)
+   .maybeSingle();
+
+ if(error){
+   console.error(error);
+   setSyncStatus('Sync unavailable');
+   return;
  }
- setSyncStatus('Synced');render();
+
+ if(!data?.state){
+   state.start=state.start||new Date().toISOString().slice(0,10);
+   state.updatedAt=Number(state.updatedAt||Date.now());
+   saveLocalOnly();
+   syncRevision++;
+   await syncNow();
+   setSyncStatus('Synced');
+   render();
+   return;
+ }
+
+ const remote=data.state;
+ const remoteUpdatedAt=Math.max(Number(remote.updatedAt||0),Date.parse(data.updated_at||'')||0);
+ const localUpdatedAt=Number(state.updatedAt||0);
+
+ if(!hasLocalState){
+   state=remote;
+   selected=dayNumber();
+   saveLocalOnly();
+ }else if(remoteUpdatedAt>localUpdatedAt){
+   state=remote;
+   selected=dayNumber();
+   saveLocalOnly();
+ }else if(localUpdatedAt>remoteUpdatedAt){
+   syncRevision++;
+   await syncNow();
+ }else{
+   state=remote;
+   selected=dayNumber();
+   saveLocalOnly();
+ }
+
+ setSyncStatus('Synced');
+ render();
 }
 function saveLocalOnly(){
  if(!activeStateKey)return;
@@ -424,7 +424,30 @@ function saveLocalOnly(){
 }
 function hasMeaningfulProgress(s){
  if(!s?.days)return false;
- return Object.values(s.days).some(d=>d&&(score(d)>0||Number(d.water||0)>0||Number(d.read||0)>0||d.weight||d.notes));
+ return Object.values(s.days).some(d=>d && (score(d)>0 || Number(d.water||0)>0 || Number(d.read||0)>0 || d.weight || d.notes));
+}
+async function migrateLegacyLocalPhotos(){
+ if(!currentUser)return;
+ let changed=false;
+ for(let d=1;d<=75;d++){
+   const c=state.days?.[d];
+   if(!c?.photoData)continue;
+   try{
+     const blob=dataUrlToBlob(c.photoData);
+     await putLocalPhoto(d,blob);
+     c.photoData='';
+     c.tasks ||= {};
+     c.tasks.photo=true;
+     changed=true;
+   }catch(error){console.error('Local photo migration failed for Day '+d,error)}
+ }
+ if(changed)saveLocalOnly();
+}
+function save(){
+ state.updatedAt=Date.now();
+ syncRevision++;
+ saveLocalOnly();
+ queueSync();
 }
 async function loginGoogle(){
  setAuthMessage('Opening Google…');
@@ -445,7 +468,7 @@ async function logout(){
 function showSignedIn(user){
  const accountChanged=currentUser?.id!==user.id;
  currentUser=user;
- if(accountChanged){setUserStateContext(user.id);syncRevision=0;}
+ if(accountChanged)setUserStateContext(user.id);
  document.getElementById('authGate').classList.add('hide');
  document.getElementById('accountEmail').textContent=user.email||'Signed in';
 }
@@ -473,7 +496,6 @@ function data(d){
  if(!state.days[d]) state.days[d]={tasks:{},water:0,read:0,weight:'',notes:''};
  state.days[d].tasks ||= {};
  state.days[d].water ||= 0; state.days[d].read ||= 0;
- ensureDayMeta(state.days[d],state.updatedAt||Date.now());
  return state.days[d];
 }
 function score(c){return TASKS.reduce((n,t)=>n+(c.tasks[t[0]]?1:0),0)}
@@ -552,14 +574,17 @@ function toggleTask(d,key){
  if(d>dayNumber())return;
  const c=data(d);
  if(key==='photo'){
-   c.tasks.photo=!c.tasks.photo;touchField(c,'task:photo');save();render();return;
+   c.tasks.photo=!c.tasks.photo;
+   save();
+   render();
+   return;
  }
- if(key==='reading'){c.read=10;c.tasks.reading=true;touchField(c,'read');save();render();return}
- if(key==='water'){c.water=3.785;c.tasks.water=true;touchField(c,'water');save();render();return}
- c.tasks[key]=!c.tasks[key];touchField(c,'task:'+key);save();render();
+ if(key==='reading'){c.read=10;c.tasks.reading=true;save();render();return}
+ if(key==='water'){c.water=3.785;c.tasks.water=true;save();render();return}
+ c.tasks[key]=!c.tasks[key];save();render();
 }
-function adjustWater(d,n){if(d>dayNumber())return;const c=data(d);if(n>0){c.water=Math.min(3.785,+(c.water+0.75).toFixed(3))}else{c.water=Math.max(0,+(c.water-0.75).toFixed(3))}c.tasks.water=c.water>=3.785;touchField(c,'water');save();render()}
-function adjustReading(d,n){if(d>dayNumber())return;const c=data(d);c.read=Math.max(0,Math.min(10,c.read+n));c.tasks.reading=c.read>=10;touchField(c,'read');save();render()}
+function adjustWater(d,n){if(d>dayNumber())return;const c=data(d);if(n>0){c.water=Math.min(3.785,+(c.water+0.75).toFixed(3))}else{c.water=Math.max(0,+(c.water-0.75).toFixed(3))}c.tasks.water=c.water>=3.785;save();render()}
+function adjustReading(d,n){if(d>dayNumber())return;const c=data(d);c.read=Math.max(0,Math.min(10,c.read+n));c.tasks.reading=c.read>=10;save();render()}
 async function uploadPhoto(d,input){
  if(d>dayNumber()||!input.files[0]||!currentUser)return;
  const file=input.files[0];
@@ -623,7 +648,7 @@ function renderWeightChart(){
 }
 const fieldSaveTimers={};
 function persistField(d,key,value){
- const day=data(d);day[key]=value;touchField(day,key);
+ data(d)[key]=value;
  clearTimeout(fieldSaveTimers[d+'-'+key]);
  fieldSaveTimers[d+'-'+key]=setTimeout(()=>{save();delete fieldSaveTimers[d+'-'+key]},500);
 }
@@ -652,7 +677,7 @@ render();
 supabaseClient.auth.onAuthStateChange(async (event,session)=>{
  if(session?.user){
    showSignedIn(session.user);
-   if(!authReady){authReady=true;await loadCloud();await migrateLegacyPhotos();await refreshPhotoUrls();render();}
+   if(!authReady){authReady=true;await loadCloud();await migrateLegacyLocalPhotos();await refreshPhotoUrls();render();}
  }else{
    showSignedOut();
  }
