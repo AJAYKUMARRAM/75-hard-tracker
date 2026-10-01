@@ -166,7 +166,7 @@ function renderCalendar(){
 function renderSelectedDetail(){
  const d=selected,today=dayNumber(),c=data(d),el=document.getElementById('selectedDetail');
  let badge=d===today?'<span class="badge today">TODAY</span>':d>today?'<span class="badge">UPCOMING</span>':isComplete(d)?'<span class="badge complete">COMPLETE</span>':'<span class="badge">'+score(c)+'/7</span>';
- el.innerHTML='<div class="section-head"><h2>Day '+d+'</h2>'+badge+'</div><div class="card"><div class="detail-head"><h3>'+dateLabel(d)+'</h3><span class="muted">'+score(c)+'/7 tasks</span></div><div class="grid" id="selectedTasks"></div></div>';
+ el.innerHTML='<div class="section-head"><h2>Day '+d+'</h2>'+badge+'</div><div class="card"><div class="detail-head"><h3>'+dateLabel(d)+'</h3><span class="muted">'+score(c)+'/7 tasks</span></div><div class="grid" id="selectedTasks"></div><div class="form-grid" style="margin-top:12px"><div class="field"><label>Weight (kg)</label><input type="number" step=".1" value="'+(c.weight||'')+'" placeholder="65.2" oninput="saveDayField('+d+',\'weight\',this.value)"></div><div class="field full"><label>Notes</label><textarea placeholder="Notes for Day '+d+'" oninput="saveDayField('+d+',\'notes\',this.value)">'+(c.notes||'')+'</textarea></div></div></div>';
  renderTasks(document.getElementById('selectedTasks'),d);
 }
 function selectDay(d){selected=d;showPage('days');render()}
@@ -201,7 +201,7 @@ function renderWeightChart(){
  const y1=lo.toFixed(1),y2=((lo+hi)/2).toFixed(1),y3=hi.toFixed(1);
  el.innerHTML='<div style="overflow:auto"><svg viewBox="0 0 '+W+' '+H+'" width="100%" height="250" role="img" aria-label="Weight progress chart"><line x1="'+L+'" y1="'+py(lo)+'" x2="'+W-R+'" y2="'+py(lo)+'" stroke="var(--line)"/><line x1="'+L+'" y1="'+py((lo+hi)/2)+'" x2="'+W-R+'" y2="'+py((lo+hi)/2)+'" stroke="var(--line)"/><line x1="'+L+'" y1="'+py(hi)+'" x2="'+W-R+'" y2="'+py(hi)+'" stroke="var(--line)"/><text x="4" y="'+(py(lo)+4)+'" fill="var(--muted)" font-size="10">'+y1+'</text><text x="4" y="'+(py((lo+hi)/2)+4)+'" fill="var(--muted)" font-size="10">'+y2+'</text><text x="4" y="'+(py(hi)+4)+'" fill="var(--muted)" font-size="10">'+y3+'</text><polyline points="'+points+'" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'+dots+labels+'</svg></div>';
 }
-function saveCurrentField(key,value){const d=dayNumber();data(d)[key]=value;save();render()}
+function saveDayField(d,key,value){data(d)[key]=value;save();render()}\nfunction saveCurrentField(key,value){const d=dayNumber();data(d)[key]=value;save();render()}
 function saveStart(){const v=document.getElementById('startInput').value;if(!v)return;state.start=v;selected=dayNumber();save();render();showPage('home')}
 function showPage(page){
  document.getElementById('homePage').classList.toggle('hide',page!=='home');
