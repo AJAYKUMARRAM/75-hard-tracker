@@ -286,13 +286,18 @@ function renderSelectedDetail(){
  el.innerHTML='<div class="section-head"><h2>Day '+d+'</h2>'+badge+'</div><div class="card"><div class="detail-head"><h3>'+dateLabel(d)+'</h3><span class="muted">'+score(c)+'/7 tasks</span></div><div class="grid" id="selectedTasks"></div><div class="form-grid" style="margin-top:12px"><div class="field"><label>Weight (kg)</label><input type="number" step=".1" value="'+(c.weight||'')+'" placeholder="65.2" oninput="saveDayField('+d+',\'weight\',this.value)"></div><div class="field full"><label>Notes</label><textarea placeholder="Notes for Day '+d+'" oninput="saveDayField('+d+',\'notes\',this.value)">'+(c.notes||'')+'</textarea></div></div></div>';
  renderTasks(document.getElementById('selectedTasks'),d);
 }
-function selectDay(d){selected=d;showPage('days');render()}
+function selectDay(d){
+  selected=d;
+  showPage('days');
+  render();
+  requestAnimationFrame(()=>document.getElementById('selectedDetail')?.scrollIntoView({behavior:'smooth',block:'start'}));
+}
 function toggleTask(d,key){
  if(d>dayNumber())return;
  const c=data(d);
  if(key==='photo'&&!c.photoData){alert('Upload a progress photo first.');return}
- if(key==='reading'&&c.read<10){alert('Complete 10 pages first.');return}
- if(key==='water'&&c.water<3.785){alert('Log the full 3.785 L first.');return}
+ if(key==='reading'){c.read=10;c.tasks.reading=true;save();render();return}
+ if(key==='water'){c.water=3.785;c.tasks.water=true;save();render();return}
  c.tasks[key]=!c.tasks[key];save();render();
 }
 function adjustWater(d,n){if(d>dayNumber())return;const c=data(d);c.water=Math.max(0,Math.min(3.785,+(c.water+n).toFixed(2)));c.tasks.water=c.water>=3.785;save();render()}
