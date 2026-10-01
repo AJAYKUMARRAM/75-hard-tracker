@@ -1,4 +1,4 @@
-const CACHE='75-hard-v13';
+const CACHE='75-hard-v14';
 const ASSETS=['./','./index.html','./manifest.webmanifest','./icon.svg'];
 
 self.addEventListener('install',event=>{
