@@ -99,7 +99,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="notice">The challenge always contains Day 1 through Day 75. Changing the start date changes which calendar date each day represents; it does not erase your day history.</div>
     <div style="margin-top:12px"><button class="secondary danger" onclick="resetAll()">Reset all local data</button></div>
   </div>
-  <div class="notice">V1 stores your progress and photos locally on this device. Cloud sync and account login can be added in V2.</div>
+  <div class="notice">Your progress is saved locally and synced to your account when signed in. Progress photos stay on this device.</div>
 </div>
 </main>
 
@@ -352,7 +352,7 @@ supabaseClient.auth.getSession().then(async ({data})=>{
    await loadCloud();
  }else showSignedOut();
 });
-if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{updateViaCache:'none'});
 </script>
 </body>
 </html>
