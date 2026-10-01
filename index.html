@@ -127,8 +127,9 @@ const APP_URL=window.location.origin+window.location.pathname;
 let currentUser=null, authReady=false, syncTimer=null;
 let photoDbPromise=null;
 const photoUrls={};
-const KEY='hard75-v2';
-let hasLocalState=!!localStorage.getItem(KEY);
+const USER_KEY_PREFIX='hard75-user-v1:';
+let activeStateKey='';
+let hasLocalState=false;
 const TASKS=[
  ['water','Water','3.785 L goal'],['workout','Workout','45 minutes'],['outdoor','Outdoor','45 minutes outside'],
  ['photo','Photo','Daily progress photo'],['reading','Reading','10 pages'],['diet','Diet','Follow your diet'],['clean','No cheat','No cheat meal / alcohol']
@@ -211,17 +212,39 @@ const DAILY_THOUGHTS=[
  "The person you want to become is built today.",
  "Finish Day 75 one day at a time."
 ];
-let state=JSON.parse(localStorage.getItem(KEY)||'null');
-if(!state){
- const legacy=JSON.parse(localStorage.getItem('hard75-v1')||'null');
- if(legacy){
-   hasLocalState=true;
-   state={start:legacy.start||new Date().toISOString().slice(0,10),days:{}};
-   Object.entries(legacy.days||{}).forEach(([d,v])=>{state.days[d]={tasks:v.tasks||{},water:v.water||0,read:v.read||0,weight:v.weight||'',notes:v.notes||''};});
- }else state={start:new Date().toISOString().slice(0,10),days:{}};
+function freshState(){
+ return {start:new Date().toISOString().slice(0,10),days:{},updatedAt:Date.now()};
 }
-let selected=dayNumber();
-state.updatedAt ||= Date.now();
+let state=freshState();
+let selected=1;
+
+function setUserStateContext(userId){
+ clearPhotoUrlCache();
+ activeStateKey=USER_KEY_PREFIX+userId;
+ const raw=localStorage.getItem(activeStateKey);
+ if(raw){
+   try{state=JSON.parse(raw);hasLocalState=true}
+   catch(error){console.error('User state parse failed',error);state=freshState();hasLocalState=false}
+ }else{
+   const legacyRaw=localStorage.getItem('hard75-v2')||localStorage.getItem('hard75-v1');
+   if(legacyRaw){
+     try{
+       const legacy=JSON.parse(legacyRaw);
+       state={start:legacy.start||new Date().toISOString().slice(0,10),days:{},updatedAt:Date.now()};
+       Object.entries(legacy.days||{}).forEach(([d,v])=>{state.days[d]={tasks:v.tasks||{},water:v.water||0,read:v.read||0,weight:v.weight||'',notes:v.notes||''};});
+       localStorage.setItem(activeStateKey,JSON.stringify(state));
+       localStorage.removeItem('hard75-v2');
+       localStorage.removeItem('hard75-v1');
+       hasLocalState=true;
+     }catch(error){console.error('Legacy state migration failed',error);state=freshState();hasLocalState=false}
+   }else{
+     state=freshState();
+     hasLocalState=false;
+   }
+ }
+ state.updatedAt ||= Date.now();
+ selected=dayNumber();
+}
 
 function setAuthMessage(msg,error=false){
  const el=document.getElementById('authMsg'); if(el){el.textContent=msg;el.style.color=error?'var(--danger)':'var(--muted)'}
@@ -284,6 +307,11 @@ async function loadLocalPhoto(d){
  }catch(error){console.error('Local photo read failed',error);return ''}
 }
 function photoSrc(d){return photoUrls[d]?.url||''}
+async function refreshPhotoUrls(){
+ for(let d=1;d<=75;d++){
+   if(state.days?.[d]?.tasks?.photo)await loadLocalPhoto(d);
+ }
+}
 function queueSync(){
  if(!currentUser||!authReady)return;
  clearTimeout(syncTimer);
@@ -325,7 +353,7 @@ function mergeStates(local,remote){
  return merged;
 }
 async function loadCloud(){
- if(!currentUser)return;
+ if(!currentUser||!activeStateKey)return;
  setSyncStatus('Syncing…');
  const {data,error}=await supabaseClient.from('challenge_states').select('state,updated_at').eq('user_id',currentUser.id).maybeSingle();
  if(error){console.error(error);setSyncStatus('Sync unavailable');return}
@@ -349,12 +377,21 @@ async function loadCloud(){
      saveLocalOnly();
    }
  }else{
+   // Brand-new accounts start today. Returning accounts already have their
+   // own local state and will keep that state when there is no cloud row yet.
+   state.start=state.start||new Date().toISOString().slice(0,10);
+   state.updatedAt=Date.now();
+   saveLocalOnly();
    await syncNow();
  }
  setSyncStatus('Synced');
  render();
 }
-function saveLocalOnly(){localStorage.setItem(KEY,JSON.stringify(state));hasLocalState=true}
+function saveLocalOnly(){
+ if(!activeStateKey)return;
+ localStorage.setItem(activeStateKey,JSON.stringify(state));
+ hasLocalState=true;
+}
 function hasMeaningfulProgress(s){
  if(!s?.days)return false;
  return Object.values(s.days).some(d=>d && (score(d)>0 || Number(d.water||0)>0 || Number(d.read||0)>0 || d.weight || d.notes));
@@ -398,12 +435,19 @@ async function logout(){
  await supabaseClient.auth.signOut({scope:'local'});
 }
 function showSignedIn(user){
+ const accountChanged=currentUser?.id!==user.id;
  currentUser=user;
+ if(accountChanged)setUserStateContext(user.id);
  document.getElementById('authGate').classList.add('hide');
  document.getElementById('accountEmail').textContent=user.email||'Signed in';
 }
 function showSignedOut(){
+ clearPhotoUrlCache();
  currentUser=null;authReady=false;
+ activeStateKey='';
+ hasLocalState=false;
+ state=freshState();
+ selected=1;
  document.getElementById('authGate').classList.remove('hide');
  setSyncStatus('Local');
 }
@@ -583,7 +627,15 @@ function showPage(page){
  if(page==='days')selected=selected||dayNumber();render();
  window.scrollTo({top:0,behavior:'smooth'});
 }
-function resetAll(){if(confirm('Delete all 75 Hard data, including saved progress photos?')){localStorage.removeItem(KEY);location.reload()}}
+async function resetAll(){
+ if(!confirm('Delete all 75 Hard data, including saved progress photos?'))return;
+ if(activeStateKey)localStorage.removeItem(activeStateKey);
+ if(currentUser){
+   const {error}=await supabaseClient.from('challenge_states').delete().eq('user_id',currentUser.id);
+   if(error){console.error(error);alert('Could not reset cloud data. Your local data was cleared, but the cloud copy remains.');}
+ }
+ location.reload();
+}
 render();
 supabaseClient.auth.onAuthStateChange(async (event,session)=>{
  if(session?.user){
