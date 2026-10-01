@@ -14,7 +14,7 @@
 .app{width:min(900px,100%);margin:auto;padding:calc(18px + env(safe-area-inset-top)) 16px calc(100px + env(safe-area-inset-bottom))}
 header{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}.brand{font-size:20px;font-weight:850;letter-spacing:-.05em}.brand span{color:var(--accent)}
 .icon-btn{width:42px;height:42px;border:1px solid var(--line);border-radius:13px;background:var(--surface);display:grid;place-items:center}
-.hero{background:linear-gradient(145deg,#171a20,#0e1013);border:1px solid var(--line);border-radius:26px;padding:22px;margin-bottom:14px;box-shadow:0 20px 50px #0003}.eyebrow{text-transform:uppercase;letter-spacing:.13em;color:var(--muted);font-size:11px;font-weight:700}.day-title{font-size:48px;line-height:1;font-weight:900;letter-spacing:-.07em;margin:7px 0 7px}.day-title span{color:var(--muted)}.date{color:var(--muted)}.progress-track{height:8px;background:#272b31;border-radius:99px;overflow:hidden;margin:19px 0 13px}.progress-track i{display:block;height:100%;background:var(--accent);border-radius:inherit;transition:width .25s ease}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.stat{background:#0f1115;border:1px solid var(--line);border-radius:16px;padding:12px 13px}.stat b{display:block;font-size:20px;letter-spacing:-.03em}.stat small{color:var(--muted);font-size:11px}
+.hero{background:linear-gradient(145deg,#171a20,#0e1013);border:1px solid var(--line);border-radius:26px;padding:22px;margin-bottom:14px;box-shadow:0 20px 50px #0003}.eyebrow{text-transform:uppercase;letter-spacing:.13em;color:var(--muted);font-size:11px;font-weight:700}.day-title{font-size:48px;line-height:1;font-weight:900;letter-spacing:-.07em;margin:7px 0 7px}.day-title span{color:var(--muted)}.date{color:var(--muted)}.progress-label{display:flex;justify-content:space-between;align-items:center;margin-top:18px;color:var(--muted);font-size:11px}.progress-label b{color:var(--text);font-size:11px}.progress-track{height:8px;background:#272b31;border-radius:99px;overflow:hidden;margin:7px 0 13px}.progress-track i{display:block;height:100%;background:var(--accent);border-radius:inherit;transition:width .25s ease}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.stat{background:#0f1115;border:1px solid var(--line);border-radius:16px;padding:12px 13px}.stat b{display:block;font-size:20px;letter-spacing:-.03em}.stat small{color:var(--muted);font-size:11px}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin:24px 2px 10px}.section-head h2{margin:0;font-size:18px;letter-spacing:-.03em}.text-btn{border:0;background:none;color:var(--accent);font-weight:700;padding:4px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.task{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:19px;padding:15px;min-height:128px;transition:.18s}.task.done{background:#12180c;border-color:#52761d}.task.future{opacity:.45}.task-top{display:flex;justify-content:space-between;gap:10px}.task-icon{width:34px;height:34px;border-radius:10px;background:var(--surface2);display:grid;place-items:center;color:var(--muted);font-weight:800;font-size:12px}.done .task-icon{background:var(--accent);color:#0b0c09}.check{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--surface2);display:grid;place-items:center;font-weight:900}.done .check{background:var(--accent);color:#090a0c;border-color:var(--accent)}.task h3{font-size:15px;margin:12px 0 3px}.task p{font-size:12px;color:var(--muted);margin:0}.control{display:flex;align-items:center;gap:7px;margin-top:12px}.control button{height:32px;min-width:36px;border:0;border-radius:10px;background:var(--accent);color:#090a0c;font-weight:850}.control span{font-size:12px;font-weight:750;flex:1;text-align:center}.upload{margin-top:12px}.upload label{display:block;text-align:center;border:1px dashed #3a3f48;background:#15181d;color:var(--muted);border-radius:11px;padding:8px;font-size:12px;font-weight:700}.upload input{display:none}.photo-preview{display:block;width:100%;height:90px;object-fit:cover;border-radius:12px;margin-top:9px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:15px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field label{display:block;color:var(--muted);font-size:11px;margin-bottom:6px}.field input,.field textarea{width:100%;background:#0c0e11;border:1px solid var(--line);color:var(--text);border-radius:12px;padding:11px;outline:none}.field textarea{min-height:90px;resize:vertical}.field.full{grid-column:1/-1}
@@ -60,11 +60,12 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="eyebrow">Your challenge</div>
     <div class="day-title">DAY <span id="todayDay">1</span> <span>/ 75</span></div>
     <div class="date" id="todayDate"></div>
+    <div class="progress-label"><span>Challenge progress</span><b id="challengeProgressLabel">Day 1 of 75</b></div>
     <div class="progress-track"><i id="challengeBar"></i></div>
     <div class="stats">
       <div class="stat"><b id="todayScore">0/7</b><small>Today</small></div>
       <div class="stat"><b id="streak">0</b><small>Streak</small></div>
-      <div class="stat"><b id="weightTop">—</b><small>Weight kg</small></div>
+      <div class="stat"><b id="completedDays">0/75</b><small>Days complete</small></div>
     </div>
   </div>
 
@@ -79,7 +80,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
       <div class="field full"><label>Notes</label><textarea id="notesInput" placeholder="How did today go?" oninput="saveCurrentField('notes',this.value)"></textarea></div>
     </div>
   </div>
-  <div class="section-head"><h2>Weight progress</h2><span class="muted" id="weightRange">No entries yet</span></div>
+  <div class="section-head"><h2>Growth</h2><span class="muted" id="weightRange">No entries yet</span></div>
   <div class="card"><div id="weightChart"></div></div>
 </div>
 
@@ -236,6 +237,7 @@ function data(d){
 function score(c){return TASKS.reduce((n,t)=>n+(c.tasks[t[0]]?1:0),0)}
 function isComplete(d){return score(data(d))===7}
 function challengePct(){return Math.round((Math.min(75,Math.max(0,dayNumber()))/75)*100)}
+function countCompletedDays(){let n=0;for(let d=1;d<=Math.min(75,dayNumber());d++)if(isComplete(d))n++;return n}
 function streak(){
  let n=0;
  for(let d=dayNumber();d>=1;d--){if(isComplete(d))n++;else break}
@@ -246,9 +248,10 @@ function render(){
  document.getElementById('todayDay').textContent=today;
  document.getElementById('todayDate').textContent=dateLabel(today);
  document.getElementById('challengeBar').style.width=challengePct()+'%';
+ document.getElementById('challengeProgressLabel').textContent='Day '+today+' of 75';
  document.getElementById('todayScore').textContent=score(data(today))+'/7';
  document.getElementById('streak').textContent=streak();
- document.getElementById('weightTop').textContent=data(today).weight||'—';
+ document.getElementById('completedDays').textContent=countCompletedDays()+'/75';
  document.getElementById('weightInput').value=data(today).weight||'';
  document.getElementById('notesInput').value=data(today).notes||'';
  document.getElementById('statusInput').value=isComplete(today)?'Completed':'In progress';
@@ -263,7 +266,7 @@ function renderTasks(el,d){
  el.innerHTML=TASKS.map(([key,name,sub])=>{
    const done=!!c.tasks[key], locked=future;
    let control='';
-   if(key==='water') control='<div class="control"><button '+(locked?'disabled':'')+' onclick="adjustWater('+d+',-.35)">−350</button><span>'+c.water.toFixed(2)+' / 3.785 L</span><button '+(locked?'disabled':'')+' onclick="adjustWater('+d+',.35)">+350</button></div>';
+   if(key==='water') control='<div class="control"><button '+(locked?'disabled':'')+' onclick="adjustWater('+d+',-.75)">−750</button><span>'+c.water.toFixed(2)+' / 3.785 L</span><button '+(locked?'disabled':'')+' onclick="adjustWater('+d+',.75)">+750</button></div>';
    if(key==='reading') control='<div class="control"><button '+(locked?'disabled':'')+' onclick="adjustReading('+d+',-1)">−</button><span>'+c.read+' / 10 pages</span><button '+(locked?'disabled':'')+' onclick="adjustReading('+d+',1)">+</button></div>';
    if(key==='photo') control='<div class="upload"><label> '+(c.photoData?'Change photo':'Upload photo')+'<input type="file" accept="image/*" '+(locked?'disabled':'')+' onchange="uploadPhoto('+d+',this)"></label>'+(c.photoData?'<img class="photo-preview" src="'+c.photoData+'" alt="Progress photo">':'')+'</div>';
    return '<article class="task '+(done?'done ':'')+(locked?'future':'')+'"><div class="task-top"><div class="task-icon">'+key.slice(0,1).toUpperCase()+'</div><button class="check" '+(locked?'disabled':'')+' onclick="toggleTask('+d+',\''+key+'\')">'+(done?'✓':'')+'</button></div><h3>'+name+'</h3><p>'+sub+'</p>'+control+'</article>';
@@ -296,11 +299,11 @@ function toggleTask(d,key){
  if(d>dayNumber())return;
  const c=data(d);
  if(key==='photo'&&!c.photoData){alert('Upload a progress photo first.');return}
- if(key==='reading'){c.read=10;c.tasks.reading=true;save();render();return}
- if(key==='water'){c.water=3.785;c.tasks.water=true;save();render();return}
+ if(key==='reading'){if(c.read<10){alert('Read 10 pages, then mark Reading complete.');return}c.tasks.reading=true;save();render();return}
+ if(key==='water'){if(c.water<3.785){alert('Add your 750 ml bottles until you reach the water goal.');return}c.tasks.water=true;save();render();return}
  c.tasks[key]=!c.tasks[key];save();render();
 }
-function adjustWater(d,n){if(d>dayNumber())return;const c=data(d);c.water=Math.max(0,Math.min(3.785,+(c.water+n).toFixed(2)));c.tasks.water=c.water>=3.785;save();render()}
+function adjustWater(d,n){if(d>dayNumber())return;const c=data(d);if(n>0){c.water=Math.min(3.785,+(c.water+0.75).toFixed(3))}else{c.water=Math.max(0,+(c.water-0.75).toFixed(3))}c.tasks.water=c.water>=3.785;save();render()}
 function adjustReading(d,n){if(d>dayNumber())return;const c=data(d);c.read=Math.max(0,Math.min(10,c.read+n));c.tasks.reading=c.read>=10;save();render()}
 function uploadPhoto(d,input){
  if(d>dayNumber()||!input.files[0])return;
@@ -309,19 +312,37 @@ function uploadPhoto(d,input){
 }
 function renderWeightChart(){
  const entries=[];
- for(let d=1;d<=75;d++){const w=parseFloat(data(d).weight);if(Number.isFinite(w)&&w>0)entries.push([d,w]);}
+ for(let d=1;d<=75;d++){
+   const raw=data(d).weight;
+   const w=Number(raw);
+   if(Number.isFinite(w)&&w>0)entries.push([d,w]);
+ }
  const el=document.getElementById('weightChart'),range=document.getElementById('weightRange');
- if(!entries.length){range.textContent='No entries yet';el.innerHTML='<div class="notice">Log your weight each day to build your progress chart.</div>';return}
- const min=Math.min(...entries.map(x=>x[1])),max=Math.max(...entries.map(x=>x[1])),pad=Math.max(.5,(max-min)*.15),lo=min-pad,hi=max+pad;
- const W=760,H=250,L=42,R=16,T=18,B=34,iw=W-L-R,ih=H-T-B;
- const px=d=>L+((d-1)/74)*iw,py=w=>T+(hi-w)/(hi-lo)*ih;
- const points=entries.map(([d,w])=>px(d)+','+py(w)).join(' ');
+ if(!entries.length){
+   range.textContent='No entries yet';
+   el.innerHTML='<div class="notice">Log your weight to see your growth over the challenge.</div>';
+   return;
+ }
+ if(entries.length===1){
+   const w=entries[0][1];
+   range.textContent='Starting weight · '+w.toFixed(1)+' kg';
+   el.innerHTML='<div class="notice">Day '+entries[0][0]+' · '+w.toFixed(1)+' kg. Add another weight entry to see the trend line.</div>';
+   return;
+ }
+ const min=Math.min(...entries.map(x=>x[1])),max=Math.max(...entries.map(x=>x[1]));
+ const spread=Math.max(.5,max-min),pad=Math.max(.25,spread*.18),lo=min-pad,hi=max+pad;
+ const W=760,H=250,L=48,R=16,T=18,B=34,iw=W-L-R,ih=H-T-B;
+ const px=d=>L+((d-1)/74)*iw;
+ const py=w=>T+((hi-w)/(hi-lo))*ih;
+ const points=entries.map(([d,w])=>px(d).toFixed(1)+','+py(w).toFixed(1)).join(' ');
  const first=entries[0],last=entries[entries.length-1],delta=last[1]-first[1];
  range.textContent=(delta>=0?'+':'')+delta.toFixed(1)+' kg';
- const dots=entries.map(([d,w])=>'<circle cx="'+px(d).toFixed(1)+'" cy="'+py(w).toFixed(1)+'" r="3.5" fill="var(--accent)"><title>Day '+d+': '+w.toFixed(1)+' kg</title></circle>').join('');
+ const mid=(lo+hi)/2;
+ const lines=[lo,mid,hi].map(v=>'<line x1="'+L+'" y1="'+py(v).toFixed(1)+'" x2="'+(W-R)+'" y2="'+py(v).toFixed(1)+'" stroke="var(--line)"/>').join('');
+ const ylabels=[lo,mid,hi].map(v=>'<text x="4" y="'+(py(v)+4).toFixed(1)+'" fill="var(--muted)" font-size="10">'+v.toFixed(1)+'</text>').join('');
  const labels=[1,15,30,45,60,75].map(d=>'<text x="'+px(d).toFixed(1)+'" y="'+(H-10)+'" text-anchor="middle" fill="var(--muted)" font-size="10">D'+d+'</text>').join('');
- const y1=lo.toFixed(1),y2=((lo+hi)/2).toFixed(1),y3=hi.toFixed(1);
- el.innerHTML='<div style="overflow:auto"><svg viewBox="0 0 '+W+' '+H+'" width="100%" height="250" role="img" aria-label="Weight progress chart"><line x1="'+L+'" y1="'+py(lo)+'" x2="'+W-R+'" y2="'+py(lo)+'" stroke="var(--line)"/><line x1="'+L+'" y1="'+py((lo+hi)/2)+'" x2="'+W-R+'" y2="'+py((lo+hi)/2)+'" stroke="var(--line)"/><line x1="'+L+'" y1="'+py(hi)+'" x2="'+W-R+'" y2="'+py(hi)+'" stroke="var(--line)"/><text x="4" y="'+(py(lo)+4)+'" fill="var(--muted)" font-size="10">'+y1+'</text><text x="4" y="'+(py((lo+hi)/2)+4)+'" fill="var(--muted)" font-size="10">'+y2+'</text><text x="4" y="'+(py(hi)+4)+'" fill="var(--muted)" font-size="10">'+y3+'</text><polyline points="'+points+'" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'+dots+labels+'</svg></div>';
+ const dots=entries.map(([d,w])=>'<circle cx="'+px(d).toFixed(1)+'" cy="'+py(w).toFixed(1)+'" r="3.5" fill="var(--accent)"><title>Day '+d+': '+w.toFixed(1)+' kg</title></circle>').join('');
+ el.innerHTML='<div style="overflow:hidden"><svg viewBox="0 0 '+W+' '+H+'" width="100%" height="250" role="img" aria-label="Weight growth chart">'+lines+ylabels+'<polyline points="'+points+'" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'+dots+labels+'</svg></div>';
 }
 function saveDayField(d,key,value){data(d)[key]=value;save();render()}
 function saveCurrentField(key,value){const d=dayNumber();data(d)[key]=value;save();render()}
