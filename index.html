@@ -318,7 +318,8 @@ function renderWeightChart(){
  const y1=lo.toFixed(1),y2=((lo+hi)/2).toFixed(1),y3=hi.toFixed(1);
  el.innerHTML='<div style="overflow:auto"><svg viewBox="0 0 '+W+' '+H+'" width="100%" height="250" role="img" aria-label="Weight progress chart"><line x1="'+L+'" y1="'+py(lo)+'" x2="'+W-R+'" y2="'+py(lo)+'" stroke="var(--line)"/><line x1="'+L+'" y1="'+py((lo+hi)/2)+'" x2="'+W-R+'" y2="'+py((lo+hi)/2)+'" stroke="var(--line)"/><line x1="'+L+'" y1="'+py(hi)+'" x2="'+W-R+'" y2="'+py(hi)+'" stroke="var(--line)"/><text x="4" y="'+(py(lo)+4)+'" fill="var(--muted)" font-size="10">'+y1+'</text><text x="4" y="'+(py((lo+hi)/2)+4)+'" fill="var(--muted)" font-size="10">'+y2+'</text><text x="4" y="'+(py(hi)+4)+'" fill="var(--muted)" font-size="10">'+y3+'</text><polyline points="'+points+'" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'+dots+labels+'</svg></div>';
 }
-function saveDayField(d,key,value){data(d)[key]=value;save();render()}\nfunction saveCurrentField(key,value){const d=dayNumber();data(d)[key]=value;save();render()}
+function saveDayField(d,key,value){data(d)[key]=value;save();render()}
+function saveCurrentField(key,value){const d=dayNumber();data(d)[key]=value;save();render()}
 function saveStart(){const v=document.getElementById('startInput').value;if(!v)return;state.start=v;selected=dayNumber();save();render();showPage('home')}
 function showPage(page){
  document.getElementById('homePage').classList.toggle('hide',page!=='home');
