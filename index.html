@@ -100,7 +100,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="notice">The challenge always contains Day 1 through Day 75. Changing the start date changes which calendar date each day represents; it does not erase your day history.</div>
     <div style="margin-top:12px"><button class="secondary danger" onclick="resetAll()">Reset all local data</button></div>
   </div>
-  <div class="notice">Your progress is saved locally and synced to your account when signed in. Progress photos stay on this device.</div>
+  <div class="notice">Your progress is saved locally and merged with your account across devices. Daily tasks, water, reading, weight and notes sync automatically. Progress photos are currently stored on this device.</div>
 </div>
 </main>
 
@@ -162,37 +162,54 @@ async function syncNow(){
  if(error){console.error(error);setSyncStatus('Sync error');return}
  setSyncStatus('Synced');
 }
+function mergeDay(localDay,remoteDay){
+ const a=localDay||{tasks:{},water:0,read:0,photoData:'',weight:'',notes:''};
+ const b=remoteDay||{tasks:{},water:0,read:0,photoData:'',weight:'',notes:''};
+ const merged={
+   tasks:{...(b.tasks||{}),...(a.tasks||{})},
+   water:Math.max(Number(a.water||0),Number(b.water||0)),
+   read:Math.max(Number(a.read||0),Number(b.read||0)),
+   photoData:a.photoData||b.photoData||'',
+   weight:a.weight||b.weight||'',
+   notes:a.notes||b.notes||''
+ };
+ Object.keys({...a.tasks,...b.tasks}).forEach(k=>{merged.tasks[k]=!!((a.tasks||{})[k]||(b.tasks||{})[k])});
+ merged.tasks.water=merged.water>=3.785 || !!((a.tasks||{}).water||(b.tasks||{}).water);
+ merged.tasks.reading=merged.read>=10 || !!((a.tasks||{}).reading||(b.tasks||{}).reading);
+ return merged;
+}
+function mergeStates(local,remote){
+ const merged=JSON.parse(JSON.stringify(remote||local||{}));
+ merged.start=local?.start||remote?.start||new Date().toISOString().slice(0,10);
+ merged.days={};
+ const keys=new Set([...Object.keys(local?.days||{}),...Object.keys(remote?.days||{})]);
+ keys.forEach(d=>merged.days[d]=mergeDay(local?.days?.[d],remote?.days?.[d]));
+ merged.updatedAt=Date.now();
+ return merged;
+}
 async function loadCloud(){
  if(!currentUser)return;
  setSyncStatus('Syncing…');
  const {data,error}=await supabaseClient.from('challenge_states').select('state,updated_at').eq('user_id',currentUser.id).maybeSingle();
  if(error){console.error(error);setSyncStatus('Sync unavailable');return}
- const local=state;
  if(data?.state){
    const remote=data.state;
-   const remoteTime=Number(remote.updatedAt||new Date(data.updated_at||0).getTime());
-   const localTime=Number(local.updatedAt||0);
+   const local=state;
    const localHasProgress=hasMeaningfulProgress(local);
    const remoteHasProgress=hasMeaningfulProgress(remote);
 
-   // A new device has a freshly-created empty local timestamp. It must never
-   // overwrite an existing cloud challenge just because its timestamp is newer.
    if(!hasLocalState){
      state=remote;
      selected=dayNumber();
      saveLocalOnly();
-   }else if(localHasProgress && !remoteHasProgress){
-     // Protect real local progress if a blank/new device previously overwrote cloud.
-     await syncNow();
-   }else if(remoteTime>localTime){
-     state=remote;
-     Object.entries(local.days||{}).forEach(([d,v])=>{
-       if(v.photoData && state.days?.[d] && !state.days[d].photoData)state.days[d].photoData=v.photoData;
-     });
+   }else if(localHasProgress || remoteHasProgress){
+     state=mergeStates(local,remote);
      selected=dayNumber();
      saveLocalOnly();
-   }else{
      await syncNow();
+   }else{
+     state=remote;
+     saveLocalOnly();
    }
  }else{
    await syncNow();
@@ -205,6 +222,7 @@ function hasMeaningfulProgress(s){
  if(!s?.days)return false;
  return Object.values(s.days).some(d=>d && (score(d)>0 || Number(d.water||0)>0 || Number(d.read||0)>0 || d.weight || d.notes || d.photoData));
 }
+
 function save(){
  state.updatedAt=Date.now();
  saveLocalOnly();
@@ -224,7 +242,7 @@ async function loginEmail(){
  else setAuthMessage('Check your email for the sign-in link.');
 }
 async function logout(){
- await supabaseClient.auth.signOut();
+ await supabaseClient.auth.signOut({scope:'local'});
 }
 function showSignedIn(user){
  currentUser=user;
