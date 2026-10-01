@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0c0e"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest"><title>75 Hard</title>
+<style>
+:root{--bg:#08090b;--card:#111317;--card2:#17191e;--text:#f5f5f2;--muted:#8b9099;--line:#25282f;--accent:#b7ff38;--danger:#ff6262}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,textarea{font:inherit}button{cursor:pointer}
+.app{max-width:760px;margin:auto;padding:calc(18px + env(safe-area-inset-top)) 16px calc(92px + env(safe-area-inset-bottom))}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}.brand{font-weight:800;letter-spacing:-.03em;font-size:20px}.brand span{color:var(--accent)}.icon{background:none;border:1px solid var(--line);color:var(--text);border-radius:12px;width:42px;height:42px}
+.hero{background:linear-gradient(145deg,#15181d,#0e1013);border:1px solid var(--line);border-radius:24px;padding:22px;margin-bottom:14px}.eyebrow{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.12em}.day{font-size:46px;font-weight:850;letter-spacing:-.06em;margin:3px 0}.date{color:var(--muted)}.bar{height:8px;background:#25282d;border-radius:99px;overflow:hidden;margin-top:18px}.bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:inherit}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:12px}.stat{background:var(--card);border:1px solid var(--line);padding:13px;border-radius:15px}.stat b{display:block;font-size:20px}.stat small{color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.task{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;min-height:118px}.task.done{border-color:#5f8420;background:#12180d}.task h3{font-size:15px;margin:10px 0 4px}.task p{margin:0;color:var(--muted);font-size:12px}.check{float:right;border:1px solid var(--line);background:var(--card2);color:var(--muted);width:30px;height:30px;border-radius:50%}.done .check{background:var(--accent);color:#0a0b08;border-color:var(--accent)}.task .control{margin-top:12px}
+input,textarea{width:100%;background:#0d0f12;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:10px;outline:none}textarea{resize:vertical;min-height:80px}
+.row{display:flex;gap:8px;align-items:center}.row button,.primary{border:0;background:var(--accent);color:#080a06;font-weight:750;border-radius:12px;padding:10px 13px}.secondary{background:var(--card2)!important;color:var(--text)!important;border:1px solid var(--line)!important}
+section{margin-top:20px}h2{font-size:18px;margin:0 0 10px}.section-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:15px}.days{display:grid;grid-template-columns:repeat(10,1fr);gap:6px}.days button{aspect-ratio:1;border-radius:9px;border:1px solid var(--line);background:#0d0f12;color:var(--muted);font-size:11px}.days .current{border-color:var(--accent);color:var(--accent)}.days .complete{background:#263514;color:var(--accent)}
+nav{position:fixed;bottom:0;left:0;right:0;background:rgba(10,11,13,.9);backdrop-filter:blur(16px);border-top:1px solid var(--line);padding:9px max(16px,calc((100vw - 760px)/2)) calc(9px + env(safe-area-inset-bottom));display:flex;justify-content:space-around}nav button{background:none;border:0;color:var(--muted);padding:6px 15px;font-size:11px}nav button.active{color:var(--text)}nav strong{display:block;font-size:18px;margin-bottom:1px}
+.hide{display:none}.muted{color:var(--muted)}.success{color:var(--accent)}.danger{color:var(--danger)}
+@media(min-width:650px){.grid{grid-template-columns:repeat(3,1fr)}}
+</style></head>
+<body><main class="app">
+<header><div class="brand">75 <span>HARD</span></div><button class="icon" onclick="toggleSettings()">⚙</button></header>
+<div id="home">
+<div class="hero"><div class="eyebrow">Your challenge</div><div class="day">DAY <span id="day">1</span> <span class="muted">/ 75</span></div><div class="date" id="date"></div><div class="bar"><i id="overall"></i></div><div class="stats"><div class="stat"><b id="score">0/7</b><small>Today</small></div><div class="stat"><b id="streak">0</b><small>Streak</small></div><div class="stat"><b id="weight">—</b><small>Weight kg</small></div></div></div>
+<section><h2>Today</h2><div class="grid" id="tasks"></div></section>
+<section><h2>Quick details</h2><div class="section-card"><label class="muted">Weight (kg)</label><input id="weightInput" type="number" step=".1" placeholder="e.g. 65.2" oninput="saveField('weight',this.value)"><br><br><label class="muted">Notes</label><textarea id="notes" placeholder="How did today go?" oninput="saveField('notes',this.value)"></textarea></div></section>
+</div>
+<div id="progress" class="hide"><section><h2>75-day calendar</h2><div class="section-card"><div class="days" id="days"></div></div></section><section><h2>Progress</h2><div class="section-card"><p><b id="pcompleted">0</b> completed days</p><p><b id="pphotos">0</b> progress photos</p><p><b id="pwater">0L</b> water logged today</p></div></section></div>
+<div id="settings" class="hide"><section><h2>Settings</h2><div class="section-card"><label class="muted">Challenge start date</label><input id="start" type="date"><br><br><button class="primary" onclick="saveStart()">Save start date</button><button class="secondary" style="margin-left:7px" onclick="resetAll()">Reset app</button><p class="muted">Your data is stored locally on this device in V1.</p></div></section></div>
+</main>
+<nav><button id="nHome" class="active" onclick="show('home')"><strong>⌂</strong>Home</button><button id="nProgress" onclick="show('progress')"><strong>◫</strong>75 Days</button><button id="nSettings" onclick="show('settings')"><strong>⚙</strong>Settings</button></nav>
+<script>
+const KEY='hard75-v1';const defaultState={start:new Date().toISOString().slice(0,10),days:{}};
+let s=JSON.parse(localStorage.getItem(KEY)||'null')||defaultState;
+function dayNum(){let a=new Date(s.start+'T00:00:00'),b=new Date();return Math.min(75,Math.max(1,Math.floor((b-a)/86400000)+1))}
+function cur(){let d=dayNum();s.days[d]??={tasks:{},water:0,read:0,photo:false,weight:'',notes:''};return s.days[d]}
+const defs=[['water','Water','3.785 L goal'],['workout','Workout','45 min'],['outdoor','Outdoor','45 min outside'],['photo','Photo','Daily progress photo'],['reading','Reading','10 pages'],['diet','Diet','Follow your diet'],['clean','No cheat','No cheat meal / alcohol']];
+function save(){localStorage.setItem(KEY,JSON.stringify(s));render()}
+function toggle(k){let c=cur();c.tasks[k]=!c.tasks[k];if(k==='photo')c.photo=c.tasks[k];save()}
+function water(n){cur().water=Math.max(0,Math.min(3.785,cur().water+n));save()}
+function reading(n){cur().read=Math.max(0,Math.min(10,cur().read+n));if(cur().read>=10)cur().tasks.reading=true;save()}
+function photo(){cur().photo=!cur().photo;cur().tasks.photo=cur().photo;save()}
+function saveField(k,v){cur()[k]=v;s.days[dayNum()]=cur();localStorage.setItem(KEY,JSON.stringify(s));render(false)}
+function completed(c){return defs.filter(x=>c.tasks[x[0]]).length}
+function render(updateInputs=true){
+let d=dayNum(),c=cur(),score=completed(c);document.getElementById('day').textContent=d;document.getElementById('date').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+document.getElementById('score').textContent=score+'/7';document.getElementById('overall').style.width=(Math.round((Object.values(s.days).filter(x=>x&&completed(x)===7).length/75)*100))+'%';document.getElementById('streak').textContent=streak();document.getElementById('weight').textContent=c.weight||'—';
+let t=document.getElementById('tasks');t.innerHTML=defs.map(([k,n,sub])=>{let done=c.tasks[k],extra=k==='water'?'<div class="row control"><button onclick="water(-.25)">−250</button><span>'+c.water.toFixed(2)+'L</span><button onclick="water(.25)">+250</button></div>':k==='reading'?'<div class="row control"><button onclick="reading(-1)">−</button><span>'+c.read+'/10 pages</span><button onclick="reading(1)">+</button></div>':'';return '<div class="task '+(done?'done':'')+'"><button class="check" onclick="toggle(\''+k+'\')">'+(done?'✓':'')+'</button><h3>'+n+'</h3><p>'+sub+'</p>'+extra+'</div>'}).join('');
+if(updateInputs){document.getElementById('weightInput').value=c.weight||'';document.getElementById('notes').value=c.notes||'';document.getElementById('start').value=s.start}
+let days=document.getElementById('days');days.innerHTML='';for(let i=1;i<=75;i++){let b=document.createElement('button');b.textContent=i;if(i===d)b.className='current';if(s.days[i]&&completed(s.days[i])===7)b.className='complete';b.onclick=()=>alert('Day '+i+': '+(s.days[i]?completed(s.days[i])+'/7 complete':'not started'));days.appendChild(b)}
+document.getElementById('pcompleted').textContent=Object.values(s.days).filter(x=>x&&completed(x)===7).length;document.getElementById('pphotos').textContent=Object.values(s.days).filter(x=>x&&x.photo).length;document.getElementById('pwater').textContent=c.water.toFixed(2)+'L';
+}
+function streak(){let n=0;for(let i=dayNum();i>=1;i--){if(s.days[i]&&completed(s.days[i])===7)n++;else break}return n}
+function show(id){['home','progress','settings'].forEach(x=>document.getElementById(x).classList.toggle('hide',x!==id));['nHome','nProgress','nSettings'].forEach(x=>document.getElementById(x).classList.remove('active'));document.getElementById(id==='home'?'nHome':id==='progress'?'nProgress':'nSettings').classList.add('active');render()}
+function toggleSettings(){show('settings')}
+function saveStart(){let v=document.getElementById('start').value;if(v){s.start=v;save();alert('Start date saved.')}}
+function resetAll(){if(confirm('Delete all local 75 Hard data?')){localStorage.removeItem(KEY);location.reload()}}
+render();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+</script></body></html>
