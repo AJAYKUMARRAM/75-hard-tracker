@@ -118,6 +118,7 @@ const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHA
 const APP_URL=window.location.origin+window.location.pathname;
 let currentUser=null, authReady=false, syncTimer=null;
 const KEY='hard75-v2';
+let hasLocalState=!!localStorage.getItem(KEY);
 const TASKS=[
  ['water','Water','3.785 L goal'],['workout','Workout','45 minutes'],['outdoor','Outdoor','45 minutes outside'],
  ['photo','Photo','Daily progress photo'],['reading','Reading','10 pages'],['diet','Diet','Follow your diet'],['clean','No cheat','No cheat meal / alcohol']
@@ -126,6 +127,7 @@ let state=JSON.parse(localStorage.getItem(KEY)||'null');
 if(!state){
  const legacy=JSON.parse(localStorage.getItem('hard75-v1')||'null');
  if(legacy){
+   hasLocalState=true;
    state={start:legacy.start||new Date().toISOString().slice(0,10),days:{}};
    Object.entries(legacy.days||{}).forEach(([d,v])=>{state.days[d]={tasks:v.tasks||{},water:v.water||0,read:v.read||0,photoData:'',weight:v.weight||'',notes:v.notes||''};});
  }else state={start:new Date().toISOString().slice(0,10),days:{}};
@@ -170,7 +172,19 @@ async function loadCloud(){
    const remote=data.state;
    const remoteTime=Number(remote.updatedAt||new Date(data.updated_at||0).getTime());
    const localTime=Number(local.updatedAt||0);
-   if(remoteTime>localTime){
+   const localHasProgress=hasMeaningfulProgress(local);
+   const remoteHasProgress=hasMeaningfulProgress(remote);
+
+   // A new device has a freshly-created empty local timestamp. It must never
+   // overwrite an existing cloud challenge just because its timestamp is newer.
+   if(!hasLocalState){
+     state=remote;
+     selected=dayNumber();
+     saveLocalOnly();
+   }else if(localHasProgress && !remoteHasProgress){
+     // Protect real local progress if a blank/new device previously overwrote cloud.
+     await syncNow();
+   }else if(remoteTime>localTime){
      state=remote;
      Object.entries(local.days||{}).forEach(([d,v])=>{
        if(v.photoData && state.days?.[d] && !state.days[d].photoData)state.days[d].photoData=v.photoData;
@@ -186,7 +200,11 @@ async function loadCloud(){
  setSyncStatus('Synced');
  render();
 }
-function saveLocalOnly(){localStorage.setItem(KEY,JSON.stringify(state))}
+function saveLocalOnly(){localStorage.setItem(KEY,JSON.stringify(state));hasLocalState=true}
+function hasMeaningfulProgress(s){
+ if(!s?.days)return false;
+ return Object.values(s.days).some(d=>d && (score(d)>0 || Number(d.water||0)>0 || Number(d.read||0)>0 || d.weight || d.notes || d.photoData));
+}
 function save(){
  state.updatedAt=Date.now();
  saveLocalOnly();
