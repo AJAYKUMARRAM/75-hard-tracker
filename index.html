@@ -359,6 +359,7 @@ async function migrateLegacyPhotos(){
      const {error}=await supabaseClient.storage.from(PHOTO_BUCKET).upload(path,blob,{contentType:'image/jpeg',cacheControl:'31536000',upsert:false});
      if(error)throw error;
      c.photoPath=path;
+     c.photoData='';
      c.tasks ||= {};
      c.tasks.photo=true;
      changed=true;
@@ -514,7 +515,7 @@ async function uploadPhoto(d,input){
        setSyncStatus('Uploading photo…');
        const {error}=await supabaseClient.storage.from(PHOTO_BUCKET).upload(path,blob,{contentType:'image/jpeg',cacheControl:'31536000',upsert:false});
        if(error)throw error;
-       c.photoData=canvas.toDataURL('image/jpeg',.82);
+       c.photoData='';
        c.photoPath=path;
        c.tasks.photo=true;
        clearPhotoUrlCache();
