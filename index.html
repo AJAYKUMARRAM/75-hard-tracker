@@ -87,7 +87,14 @@ const TASKS=[
  ['water','Water','3.785 L goal'],['workout','Workout','45 minutes'],['outdoor','Outdoor','45 minutes outside'],
  ['photo','Photo','Daily progress photo'],['reading','Reading','10 pages'],['diet','Diet','Follow your diet'],['clean','No cheat','No cheat meal / alcohol']
 ];
-const state=JSON.parse(localStorage.getItem(KEY)||'null')||{start:new Date().toISOString().slice(0,10),days:{}};
+let state=JSON.parse(localStorage.getItem(KEY)||'null');
+if(!state){
+ const legacy=JSON.parse(localStorage.getItem('hard75-v1')||'null');
+ if(legacy){
+   state={start:legacy.start||new Date().toISOString().slice(0,10),days:{}};
+   Object.entries(legacy.days||{}).forEach(([d,v])=>{state.days[d]={tasks:v.tasks||{},water:v.water||0,read:v.read||0,photoData:'',weight:v.weight||'',notes:v.notes||''};});
+ }else state={start:new Date().toISOString().slice(0,10),days:{}};
+}
 let selected=dayNumber();
 
 function save(){localStorage.setItem(KEY,JSON.stringify(state))}
@@ -160,7 +167,14 @@ function renderSelectedDetail(){
  renderTasks(document.getElementById('selectedTasks'),d);
 }
 function selectDay(d){selected=d;showPage('days');render()}
-function toggleTask(d,key){if(d>dayNumber())return;const c=data(d);c.tasks[key]=!c.tasks[key];if(key==='reading'&&c.read<10)c.tasks[key]=false;if(key==='water'&&c.water<3.785)c.tasks[key]=false;save();render()}
+function toggleTask(d,key){
+ if(d>dayNumber())return;
+ const c=data(d);
+ if(key==='photo'&&!c.photoData){alert('Upload a progress photo first.');return}
+ if(key==='reading'&&c.read<10){alert('Complete 10 pages first.');return}
+ if(key==='water'&&c.water<3.785){alert('Log the full 3.785 L first.');return}
+ c.tasks[key]=!c.tasks[key];save();render();
+}
 function adjustWater(d,n){if(d>dayNumber())return;const c=data(d);c.water=Math.max(0,Math.min(3.785,+(c.water+n).toFixed(2)));c.tasks.water=c.water>=3.785;save();render()}
 function adjustReading(d,n){if(d>dayNumber())return;const c=data(d);c.read=Math.max(0,Math.min(10,c.read+n));c.tasks.reading=c.read>=10;save();render()}
 function uploadPhoto(d,input){
