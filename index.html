@@ -26,8 +26,32 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .hide{display:none!important}.muted{color:var(--muted)}
 @media(min-width:680px){.grid{grid-template-columns:repeat(3,1fr)}.calendar{grid-template-columns:repeat(10,1fr)}.day-cell{border-radius:10px}.day-title{font-size:54px}}
 </style>
+
+<style>
+.auth-gate{position:fixed;inset:0;z-index:100;background:radial-gradient(circle at 50% 15%,#1c2410 0,#090a0c 45%);display:grid;place-items:center;padding:24px}
+.auth-box{width:min(420px,100%);background:#111317;border:1px solid #2b3038;border-radius:28px;padding:28px;box-shadow:0 30px 90px #0008}
+.auth-logo{font-size:25px;font-weight:900;letter-spacing:-.06em}.auth-logo span{color:var(--accent)}
+.auth-title{font-size:30px;line-height:1.05;font-weight:900;letter-spacing:-.05em;margin:28px 0 8px}.auth-sub{color:var(--muted);font-size:13px;margin:0 0 22px}
+.auth-input{width:100%;background:#0b0d10;border:1px solid var(--line);color:var(--text);border-radius:13px;padding:13px;outline:none;margin-bottom:10px}
+.auth-btn{width:100%;border:0;border-radius:13px;padding:13px;font-weight:850;background:var(--accent);color:#080a07;margin-bottom:9px}.auth-btn.secondary{background:var(--surface2);color:var(--text);border:1px solid var(--line)}
+.auth-divider{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px;margin:7px 0 14px}.auth-divider:before,.auth-divider:after{content:"";height:1px;background:var(--line);flex:1}
+.auth-msg{min-height:18px;color:var(--muted);font-size:12px;margin-top:6px}.account-row{display:flex;align-items:center;justify-content:space-between;gap:12px}.account-email{font-size:13px;overflow:hidden;text-overflow:ellipsis}
+.sync-pill{font-size:10px;color:var(--muted);border:1px solid var(--line);background:var(--surface2);border-radius:99px;padding:5px 8px}
+</style>
 </head>
 <body>
+<div id="authGate" class="auth-gate">
+  <div class="auth-box">
+    <div class="auth-logo">75 <span>HARD</span></div>
+    <div class="auth-title">Your challenge.<br>Synced everywhere.</div>
+    <p class="auth-sub">Sign in to keep your 75-day progress synced across your devices.</p>
+    <button class="auth-btn" onclick="loginGoogle()">Continue with Google</button>
+    <div class="auth-divider">OR</div>
+    <input id="authEmail" class="auth-input" type="email" autocomplete="email" placeholder="you@example.com">
+    <button class="auth-btn secondary" onclick="loginEmail()">Email me a magic link</button>
+    <div id="authMsg" class="auth-msg"></div>
+  </div>
+</div>
 <main class="app">
 <header><div class="brand">75 <span>HARD</span></div><button class="icon-btn" onclick="showPage('settings')" aria-label="Settings">⚙</button></header>
 
@@ -68,6 +92,8 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 <div id="settingsPage" class="hide">
   <div class="section-head" style="margin-top:0"><h2>Settings</h2></div>
   <div class="card">
+    <div class="account-row" style="margin-bottom:14px"><div><div class="eyebrow">Account</div><div id="accountEmail" class="account-email">Not signed in</div></div><span id="syncStatus" class="sync-pill">Local</span></div>
+    <button class="secondary" onclick="logout()" style="margin-bottom:16px">Sign out</button>
     <div class="field"><label>Challenge start date</label><input id="startInput" type="date"></div>
     <div style="margin-top:12px"><button class="primary" onclick="saveStart()">Save start date</button></div>
     <div class="notice">The challenge always contains Day 1 through Day 75. Changing the start date changes which calendar date each day represents; it does not erase your day history.</div>
@@ -83,7 +109,13 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 <button id="navSettings" class="nav-btn" onclick="showPage('settings')"><strong>⚙</strong>Settings</button>
 </nav>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+const SUPABASE_URL='https://fasnnommpjfexcprhiyz.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_wX_4AOpKH8a989Pohtm4Ug_ju1C2xoa';
+const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+const APP_URL=window.location.origin+window.location.pathname;
+let currentUser=null, authReady=false, syncTimer=null;
 const KEY='hard75-v2';
 const TASKS=[
  ['water','Water','3.785 L goal'],['workout','Workout','45 minutes'],['outdoor','Outdoor','45 minutes outside'],
@@ -98,8 +130,93 @@ if(!state){
  }else state={start:new Date().toISOString().slice(0,10),days:{}};
 }
 let selected=dayNumber();
+state.updatedAt ||= Date.now();
 
-function save(){localStorage.setItem(KEY,JSON.stringify(state))}
+function setAuthMessage(msg,error=false){
+ const el=document.getElementById('authMsg'); if(el){el.textContent=msg;el.style.color=error?'var(--danger)':'var(--muted)'}
+}
+function setSyncStatus(text){
+ const el=document.getElementById('syncStatus'); if(el)el.textContent=text;
+}
+function cloudState(){
+ const copy=JSON.parse(JSON.stringify(state));
+ Object.values(copy.days||{}).forEach(d=>{d.photoData=''});
+ return copy;
+}
+function queueSync(){
+ if(!currentUser||!authReady)return;
+ clearTimeout(syncTimer);
+ setSyncStatus('Saving…');
+ syncTimer=setTimeout(syncNow,700);
+}
+async function syncNow(){
+ if(!currentUser||!authReady)return;
+ const {error}=await supabaseClient.from('challenge_states').upsert({
+   user_id:currentUser.id,
+   state:cloudState(),
+   updated_at:new Date(state.updatedAt||Date.now()).toISOString()
+ },{onConflict:'user_id'});
+ if(error){console.error(error);setSyncStatus('Sync error');return}
+ setSyncStatus('Synced');
+}
+async function loadCloud(){
+ if(!currentUser)return;
+ setSyncStatus('Syncing…');
+ const {data,error}=await supabaseClient.from('challenge_states').select('state,updated_at').eq('user_id',currentUser.id).maybeSingle();
+ if(error){console.error(error);setSyncStatus('Sync unavailable');return}
+ const local=state;
+ if(data?.state){
+   const remote=data.state;
+   const remoteTime=Number(remote.updatedAt||new Date(data.updated_at||0).getTime());
+   const localTime=Number(local.updatedAt||0);
+   if(remoteTime>localTime){
+     state=remote;
+     Object.entries(local.days||{}).forEach(([d,v])=>{
+       if(v.photoData && state.days?.[d] && !state.days[d].photoData)state.days[d].photoData=v.photoData;
+     });
+     selected=dayNumber();
+     saveLocalOnly();
+   }else{
+     await syncNow();
+   }
+ }else{
+   await syncNow();
+ }
+ setSyncStatus('Synced');
+ render();
+}
+function saveLocalOnly(){localStorage.setItem(KEY,JSON.stringify(state))}
+function save(){
+ state.updatedAt=Date.now();
+ saveLocalOnly();
+ queueSync();
+}
+async function loginGoogle(){
+ setAuthMessage('Opening Google…');
+ const {error}=await supabaseClient.auth.signInWithOAuth({provider:'google',options:{redirectTo:APP_URL}});
+ if(error)setAuthMessage(error.message,true);
+}
+async function loginEmail(){
+ const email=document.getElementById('authEmail').value.trim();
+ if(!email){setAuthMessage('Enter your email address.',true);return}
+ setAuthMessage('Sending magic link…');
+ const {error}=await supabaseClient.auth.signInWithOtp({email,options:{emailRedirectTo:APP_URL}});
+ if(error)setAuthMessage(error.message,true);
+ else setAuthMessage('Check your email for the sign-in link.');
+}
+async function logout(){
+ await supabaseClient.auth.signOut();
+}
+function showSignedIn(user){
+ currentUser=user;
+ document.getElementById('authGate').classList.add('hide');
+ document.getElementById('accountEmail').textContent=user.email||'Signed in';
+}
+function showSignedOut(){
+ currentUser=null;authReady=false;
+ document.getElementById('authGate').classList.remove('hide');
+ setSyncStatus('Local');
+}
 function dayNumber(){
  const start=new Date(state.start+'T00:00:00'), now=new Date();
  return Math.min(75,Math.max(1,Math.floor((now-start)/86400000)+1));
@@ -214,6 +331,21 @@ function showPage(page){
 }
 function resetAll(){if(confirm('Delete all 75 Hard data, including saved progress photos?')){localStorage.removeItem(KEY);location.reload()}}
 render();
+supabaseClient.auth.onAuthStateChange(async (event,session)=>{
+ if(session?.user){
+   showSignedIn(session.user);
+   if(!authReady){authReady=true;await loadCloud();}
+ }else{
+   showSignedOut();
+ }
+});
+supabaseClient.auth.getSession().then(async ({data})=>{
+ if(data.session?.user){
+   showSignedIn(data.session.user);
+   authReady=true;
+   await loadCloud();
+ }else showSignedOut();
+});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script>
 </body>
