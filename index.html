@@ -25,6 +25,9 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 .primary{border:0;background:var(--accent);color:#080a07;font-weight:800;border-radius:12px;padding:11px 14px}.secondary{border:1px solid var(--line);background:var(--surface2);border-radius:12px;padding:10px 13px}.danger{color:var(--danger)}
 .hide{display:none!important}.muted{color:var(--muted)}
 @media(min-width:680px){.grid{grid-template-columns:repeat(3,1fr)}.calendar{grid-template-columns:repeat(10,1fr)}.day-cell{border-radius:10px}.day-title{font-size:54px}}
+.thought-banner{margin:18px 0 24px;padding:16px 18px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(135deg,rgba(255,255,255,.045),rgba(255,255,255,.018));box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+.thought-label{display:block;font-size:10px;letter-spacing:.12em;font-weight:800;color:var(--accent);margin-bottom:7px}
+.thought-banner p{margin:0;font-size:15px;line-height:1.45;font-weight:600;color:var(--text)}
 </style>
 
 <style>
@@ -68,6 +71,11 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
       <div class="stat"><b id="completedDays">0/75</b><small>Days complete</small></div>
     </div>
   </div>
+
+  <div class="thought-banner">
+  <span class="thought-label">TODAY'S THOUGHT</span>
+  <p id="dailyThought">Discipline makes the promise to yourself real.</p>
+</div>
 
   <div class="section-head"><h2>Today's tasks</h2><button class="text-btn" onclick="showPage('days')">View all 75 days →</button></div>
   <div class="grid" id="todayTasks"></div>
@@ -122,6 +130,84 @@ let hasLocalState=!!localStorage.getItem(KEY);
 const TASKS=[
  ['water','Water','3.785 L goal'],['workout','Workout','45 minutes'],['outdoor','Outdoor','45 minutes outside'],
  ['photo','Photo','Daily progress photo'],['reading','Reading','10 pages'],['diet','Diet','Follow your diet'],['clean','No cheat','No cheat meal / alcohol']
+];
+const DAILY_THOUGHTS=[
+ "Discipline makes the promise to yourself real.",
+ "Small actions become a different life.",
+ "Do the work, even when nobody is watching.",
+ "Consistency beats intensity when intensity fades.",
+ "You do not need motivation to keep a promise.",
+ "One completed task is one vote for the person you want to become.",
+ "Make today count before asking what tomorrow can bring.",
+ "The standard is simple: finish what you started.",
+ "Progress is built quietly, one decision at a time.",
+ "Your future is shaped by what you repeat today.",
+ "Do the next right thing. Then do it again.",
+ "A strong day starts with a clear decision.",
+ "Keep the promise. Keep moving.",
+ "You are building evidence that you can trust yourself.",
+ "Results follow the days you refuse to waste.",
+ "Make discipline your default.",
+ "The boring days are where consistency is built.",
+ "Finish today's work before chasing tomorrow's results.",
+ "Every rep, page, step, and choice adds up.",
+ "You don't need a perfect day. You need an honest one.",
+ "Protect your focus. Protect your progress.",
+ "Action creates momentum.",
+ "Keep going when the excitement disappears.",
+ "Your habits are writing your story.",
+ "Today is another chance to prove consistency.",
+ "Do less talking. Do more finishing.",
+ "The goal gets closer every time you show up.",
+ "Build the day you want to remember.",
+ "A promise kept is confidence earned.",
+ "Stay patient. Stay relentless.",
+ "Your standards shape your results.",
+ "Win the next hour.",
+ "Make discipline easier by removing the debate.",
+ "You become stronger by doing hard things repeatedly.",
+ "Keep your eyes on the process.",
+ "One day at a time. No shortcuts.",
+ "Show up. Execute. Repeat.",
+ "The work compounds.",
+ "Do it tired. Do it busy. Do it anyway.",
+ "Your future self is watching what you do today.",
+ "Consistency turns effort into identity.",
+ "You don't have to feel ready. Start.",
+ "Keep the chain alive.",
+ "Hard days still count.",
+ "Progress does not need applause.",
+ "Focus on what you can finish today.",
+ "The standard stays the standard.",
+ "Earn tomorrow with today's actions.",
+ "Be proud of the effort you repeat.",
+ "Discipline is choosing the long-term win.",
+ "Keep moving forward, even slowly.",
+ "Your habits are your daily votes.",
+ "Make today's choices match your goals.",
+ "Finish strong.",
+ "The days add up faster than you think.",
+ "Don't negotiate with the commitment you made.",
+ "Momentum starts with one completed task.",
+ "You are closer because you showed up.",
+ "Build proof, not excuses.",
+ "Let consistency do the heavy lifting.",
+ "A disciplined day is never wasted.",
+ "Keep the promise when it gets inconvenient.",
+ "Your effort today becomes your strength tomorrow.",
+ "Stay locked in on the next action.",
+ "The challenge is the point.",
+ "Do what you said you would do.",
+ "Progress rewards persistence.",
+ "Keep going. The next win is one task away.",
+ "Make today another brick in the foundation.",
+ "Strong habits create strong outcomes.",
+ "Your only job is to execute today.",
+ "Don't chase perfection. Chase completion.",
+ "Every finished day makes the next one easier.",
+ "Stay focused. Stay consistent. Stay moving.",
+ "The person you want to become is built today.",
+ "Finish Day 75 one day at a time."
 ];
 let state=JSON.parse(localStorage.getItem(KEY)||'null');
 if(!state){
@@ -275,8 +361,12 @@ function isComplete(d){return score(data(d))===7}
 function challengePct(){return Math.round((Math.min(75,Math.max(0,dayNumber()))/75)*100)}
 function countCompletedDays(){let n=0;for(let d=1;d<=Math.min(75,dayNumber());d++)if(isComplete(d))n++;return n}
 function streak(){
+ const today=dayNumber();
+ let d=today;
+ // If today is still in progress, count the completed consecutive days immediately before today.
+ if(!isComplete(today)) d=today-1;
  let n=0;
- for(let d=dayNumber();d>=1;d--){if(isComplete(d))n++;else break}
+ for(;d>=1;d--){if(isComplete(d))n++;else break}
  return n;
 }
 function render(){
@@ -288,6 +378,7 @@ function render(){
  document.getElementById('todayScore').textContent=score(data(today))+'/7';
  document.getElementById('streak').textContent=streak();
  document.getElementById('completedDays').textContent=countCompletedDays()+'/75';
+ document.getElementById('dailyThought').textContent=DAILY_THOUGHTS[(today-1)%DAILY_THOUGHTS.length];
  document.getElementById('weightInput').value=data(today).weight||'';
  document.getElementById('notesInput').value=data(today).notes||'';
  document.getElementById('statusInput').value=isComplete(today)?'Completed':'In progress';
@@ -335,8 +426,8 @@ function toggleTask(d,key){
  if(d>dayNumber())return;
  const c=data(d);
  if(key==='photo'&&!c.photoData){alert('Upload a progress photo first.');return}
- if(key==='reading'){if(c.read<10){alert('Read 10 pages, then mark Reading complete.');return}c.tasks.reading=true;save();render();return}
- if(key==='water'){if(c.water<3.785){alert('Add your 750 ml bottles until you reach the water goal.');return}c.tasks.water=true;save();render();return}
+ if(key==='reading'){c.read=10;c.tasks.reading=true;save();render();return}
+ if(key==='water'){c.water=3.785;c.tasks.water=true;save();render();return}
  c.tasks[key]=!c.tasks[key];save();render();
 }
 function adjustWater(d,n){if(d>dayNumber())return;const c=data(d);if(n>0){c.water=Math.min(3.785,+(c.water+0.75).toFixed(3))}else{c.water=Math.max(0,+(c.water-0.75).toFixed(3))}c.tasks.water=c.water>=3.785;save();render()}
