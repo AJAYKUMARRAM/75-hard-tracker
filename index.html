@@ -108,7 +108,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
     <div class="notice">The challenge always contains Day 1 through Day 75. Changing the start date changes which calendar date each day represents; it does not erase your day history.</div>
     <div style="margin-top:12px"><button class="secondary danger" onclick="resetAll()">Reset all local data</button></div>
   </div>
-  <div class="notice">Your progress is saved locally and merged with your account across devices. Daily tasks, water, reading, weight and notes sync automatically. Progress photos are currently stored on this device.</div>
+  <div class="notice">Your progress is saved locally and merged with your account across devices. Daily tasks, water, reading, weight, notes and progress photos sync automatically. Photos are stored privately in Supabase Storage and only you can access them.</div>
 </div>
 </main>
 
@@ -124,7 +124,10 @@ const SUPABASE_URL='https://fasnnommpjfexcprhiyz.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_wX_4AOpKH8a989Pohtm4Ug_ju1C2xoa';
 const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 const APP_URL=window.location.origin+window.location.pathname;
-let currentUser=null, authReady=false, syncTimer=null;
+const PHOTO_BUCKET='75-hard-photos';
+const PHOTO_URL_TTL=3300;
+let currentUser=null, authReady=false, syncTimer=null, photoRefreshPromise=null;
+const photoUrls={};
 const KEY='hard75-v2';
 let hasLocalState=!!localStorage.getItem(KEY);
 const TASKS=[
@@ -215,7 +218,7 @@ if(!state){
  if(legacy){
    hasLocalState=true;
    state={start:legacy.start||new Date().toISOString().slice(0,10),days:{}};
-   Object.entries(legacy.days||{}).forEach(([d,v])=>{state.days[d]={tasks:v.tasks||{},water:v.water||0,read:v.read||0,photoData:'',weight:v.weight||'',notes:v.notes||''};});
+   Object.entries(legacy.days||{}).forEach(([d,v])=>{state.days[d]={tasks:v.tasks||{},water:v.water||0,read:v.read||0,photoData:'',photoPath:'',weight:v.weight||'',notes:v.notes||''};});
  }else state={start:new Date().toISOString().slice(0,10),days:{}};
 }
 let selected=dayNumber();
@@ -231,6 +234,41 @@ function cloudState(){
  const copy=JSON.parse(JSON.stringify(state));
  Object.values(copy.days||{}).forEach(d=>{d.photoData=''});
  return copy;
+}
+function dataUrlToBlob(dataUrl){
+ const parts=dataUrl.split(',');
+ const mime=(parts[0].match(/:(.*?);/)||[])[1]||'image/jpeg';
+ const binary=atob(parts[1]||'');
+ const bytes=new Uint8Array(binary.length);
+ for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+ return new Blob([bytes],{type:mime});
+}
+function clearPhotoUrlCache(){Object.keys(photoUrls).forEach(k=>delete photoUrls[k])}
+async function refreshPhotoUrls(){
+ if(!currentUser||photoRefreshPromise)return photoRefreshPromise;
+ const paths=[];
+ for(let d=1;d<=75;d++){
+   const path=state.days?.[d]?.photoPath;
+   if(path){
+     const cached=photoUrls[d];
+     if(!cached||cached.path!==path||cached.expiresAt<Date.now())paths.push([d,path]);
+   }
+ }
+ if(!paths.length)return;
+ photoRefreshPromise=(async()=>{
+   const result=await supabaseClient.storage.from(PHOTO_BUCKET).createSignedUrls(paths.map(x=>x[1]),PHOTO_URL_TTL);
+   if(result.error){console.error('Photo URL error',result.error);return}
+   (result.data||[]).forEach((item,i)=>{
+     if(item?.signedUrl)photoUrls[paths[i][0]]={path:paths[i][1],url:item.signedUrl,expiresAt:Date.now()+(PHOTO_URL_TTL*1000)};
+   });
+ })().finally(()=>{photoRefreshPromise=null});
+ return photoRefreshPromise;
+}
+function photoSrc(d){
+ const c=data(d);
+ if(c.photoData)return c.photoData;
+ const cached=photoUrls[d];
+ return cached?.path===c.photoPath&&cached.expiresAt>Date.now()?cached.url:'';
 }
 function queueSync(){
  if(!currentUser||!authReady)return;
@@ -249,13 +287,14 @@ async function syncNow(){
  setSyncStatus('Synced');
 }
 function mergeDay(localDay,remoteDay){
- const a=localDay||{tasks:{},water:0,read:0,photoData:'',weight:'',notes:''};
- const b=remoteDay||{tasks:{},water:0,read:0,photoData:'',weight:'',notes:''};
+ const a=localDay||{tasks:{},water:0,read:0,photoData:'',photoPath:'',weight:'',notes:''};
+ const b=remoteDay||{tasks:{},water:0,read:0,photoData:'',photoPath:'',weight:'',notes:''};
  const merged={
    tasks:{...(b.tasks||{}),...(a.tasks||{})},
    water:Math.max(Number(a.water||0),Number(b.water||0)),
    read:Math.max(Number(a.read||0),Number(b.read||0)),
    photoData:a.photoData||b.photoData||'',
+   photoPath:a.photoPath||b.photoPath||'',
    weight:a.weight||b.weight||'',
    notes:a.notes||b.notes||''
  };
@@ -306,7 +345,30 @@ async function loadCloud(){
 function saveLocalOnly(){localStorage.setItem(KEY,JSON.stringify(state));hasLocalState=true}
 function hasMeaningfulProgress(s){
  if(!s?.days)return false;
- return Object.values(s.days).some(d=>d && (score(d)>0 || Number(d.water||0)>0 || Number(d.read||0)>0 || d.weight || d.notes || d.photoData));
+ return Object.values(s.days).some(d=>d && (score(d)>0 || Number(d.water||0)>0 || Number(d.read||0)>0 || d.weight || d.notes || d.photoData || d.photoPath));
+}
+async function migrateLegacyPhotos(){
+ if(!currentUser)return;
+ let changed=false;
+ for(let d=1;d<=75;d++){
+   const c=state.days?.[d];
+   if(!c?.photoData||c.photoPath)continue;
+   try{
+     const blob=dataUrlToBlob(c.photoData);
+     const path=currentUser.id+'/day-'+d+'-'+Date.now()+'.jpg';
+     const {error}=await supabaseClient.storage.from(PHOTO_BUCKET).upload(path,blob,{contentType:'image/jpeg',cacheControl:'31536000',upsert:false});
+     if(error)throw error;
+     c.photoPath=path;
+     c.tasks ||= {};
+     c.tasks.photo=true;
+     changed=true;
+   }catch(error){console.error('Photo migration failed for Day '+d,error)}
+ }
+ if(changed){
+   clearPhotoUrlCache();
+   saveLocalOnly();
+   await syncNow();
+ }
 }
 
 function save(){
@@ -351,9 +413,9 @@ function dateForDay(d){
 }
 function dateLabel(d){return dateForDay(d).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'})}
 function data(d){
- if(!state.days[d]) state.days[d]={tasks:{},water:0,read:0,photoData:'',weight:'',notes:''};
+ if(!state.days[d]) state.days[d]={tasks:{},water:0,read:0,photoData:'',photoPath:'',weight:'',notes:''};
  state.days[d].tasks ||= {};
- state.days[d].water ||= 0; state.days[d].read ||= 0; state.days[d].photoData ||= '';
+ state.days[d].water ||= 0; state.days[d].read ||= 0; state.days[d].photoData ||= ''; state.days[d].photoPath ||= '';
  return state.days[d];
 }
 function score(c){return TASKS.reduce((n,t)=>n+(c.tasks[t[0]]?1:0),0)}
@@ -387,6 +449,9 @@ function render(){
  renderSelectedDetail();
  renderWeightChart();
  document.getElementById('startInput').value=state.start;
+ if(currentUser&&!photoRefreshPromise){
+   refreshPhotoUrls().then(()=>{if(document.visibilityState!=='hidden')render()}).catch(console.error);
+ }
 }
 function renderTasks(el,d){
  const c=data(d), future=d>dayNumber();
@@ -395,7 +460,7 @@ function renderTasks(el,d){
    let control='';
    if(key==='water') control='<div class="control"><button '+(locked?'disabled':'')+' onclick="adjustWater('+d+',-.75)">−750</button><span>'+c.water.toFixed(2)+' / 3.785 L</span><button '+(locked?'disabled':'')+' onclick="adjustWater('+d+',.75)">+750</button></div>';
    if(key==='reading') control='<div class="control"><button '+(locked?'disabled':'')+' onclick="adjustReading('+d+',-1)">−</button><span>'+c.read+' / 10 pages</span><button '+(locked?'disabled':'')+' onclick="adjustReading('+d+',1)">+</button></div>';
-   if(key==='photo') control='<div class="upload"><label> '+(c.photoData?'Change photo':'Upload photo')+'<input type="file" accept="image/*" '+(locked?'disabled':'')+' onchange="uploadPhoto('+d+',this)"></label>'+(c.photoData?'<img class="photo-preview" src="'+c.photoData+'" alt="Progress photo">':'')+'</div>';
+   if(key==='photo') control='<div class="upload"><label> '+(c.photoData||c.photoPath?'Change photo':'Upload photo')+'<input type="file" accept="image/*" '+(locked?'disabled':'')+' onchange="uploadPhoto('+d+',this)"></label>'+(photoSrc(d)?'<img class="photo-preview" src="'+photoSrc(d)+'" alt="Progress photo">':(c.photoPath?'<div class="notice">Loading synced photo…</div>':''))+'</div>';
    return '<article class="task '+(done?'done ':'')+(locked?'future':'')+'"><div class="task-top"><div class="task-icon">'+key.slice(0,1).toUpperCase()+'</div><button class="check" '+(locked?'disabled':'')+' onclick="toggleTask('+d+',\''+key+'\')">'+(done?'✓':'')+'</button></div><h3>'+name+'</h3><p>'+sub+'</p>'+control+'</article>';
  }).join('');
 }
@@ -425,17 +490,47 @@ function selectDay(d){
 function toggleTask(d,key){
  if(d>dayNumber())return;
  const c=data(d);
- if(key==='photo'&&!c.photoData){alert('Upload a progress photo first.');return}
+ if(key==='photo'&&!c.photoData&&!c.photoPath){alert('Upload a progress photo first.');return}
  if(key==='reading'){c.read=10;c.tasks.reading=true;save();render();return}
  if(key==='water'){c.water=3.785;c.tasks.water=true;save();render();return}
  c.tasks[key]=!c.tasks[key];save();render();
 }
 function adjustWater(d,n){if(d>dayNumber())return;const c=data(d);if(n>0){c.water=Math.min(3.785,+(c.water+0.75).toFixed(3))}else{c.water=Math.max(0,+(c.water-0.75).toFixed(3))}c.tasks.water=c.water>=3.785;save();render()}
 function adjustReading(d,n){if(d>dayNumber())return;const c=data(d);c.read=Math.max(0,Math.min(10,c.read+n));c.tasks.reading=c.read>=10;save();render()}
-function uploadPhoto(d,input){
- if(d>dayNumber()||!input.files[0])return;
- const file=input.files[0];const reader=new FileReader();
- reader.onload=()=>{const img=new Image();img.onload=()=>{const max=1200,scale=Math.min(1,max/img.width),canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);data(d).photoData=canvas.toDataURL('image/jpeg',.82);data(d).tasks.photo=true;save();render()};img.src=reader.result};reader.readAsDataURL(file);
+async function uploadPhoto(d,input){
+ if(d>dayNumber()||!input.files[0]||!currentUser)return;
+ const file=input.files[0];
+ const reader=new FileReader();
+ reader.onload=()=>{
+   const img=new Image();
+   img.onload=async()=>{
+     try{
+       const max=1200,scale=Math.min(1,max/img.width),canvas=document.createElement('canvas');
+       canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
+       canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+       const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Could not prepare photo.')),'image/jpeg',.82));
+       const c=data(d),oldPath=c.photoPath;
+       const path=currentUser.id+'/day-'+d+'-'+Date.now()+'.jpg';
+       setSyncStatus('Uploading photo…');
+       const {error}=await supabaseClient.storage.from(PHOTO_BUCKET).upload(path,blob,{contentType:'image/jpeg',cacheControl:'31536000',upsert:false});
+       if(error)throw error;
+       c.photoData=canvas.toDataURL('image/jpeg',.82);
+       c.photoPath=path;
+       c.tasks.photo=true;
+       clearPhotoUrlCache();
+       save();
+       await refreshPhotoUrls();
+       render();
+       if(oldPath&&oldPath!==path){
+         const {error:removeError}=await supabaseClient.storage.from(PHOTO_BUCKET).remove([oldPath]);
+         if(removeError)console.error('Old photo cleanup failed',removeError);
+       }
+     }catch(error){console.error(error);alert('Photo upload failed: '+error.message);setSyncStatus('Sync error')}
+   };
+   img.onerror=()=>alert('Could not read the image.');
+   img.src=reader.result;
+ };
+ reader.readAsDataURL(file);
 }
 function renderWeightChart(){
  const entries=[];
@@ -488,7 +583,7 @@ render();
 supabaseClient.auth.onAuthStateChange(async (event,session)=>{
  if(session?.user){
    showSignedIn(session.user);
-   if(!authReady){authReady=true;await loadCloud();}
+   if(!authReady){authReady=true;await loadCloud();await migrateLegacyPhotos();await refreshPhotoUrls();render();}
  }else{
    showSignedOut();
  }
@@ -498,6 +593,9 @@ supabaseClient.auth.getSession().then(async ({data})=>{
    showSignedIn(data.session.user);
    authReady=true;
    await loadCloud();
+   await migrateLegacyPhotos();
+   await refreshPhotoUrls();
+   render();
  }else showSignedOut();
 });
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{updateViaCache:'none'});
